@@ -1,0 +1,274 @@
+---
+title: "Labour Economics. Assignment I"
+author: "Sander de Vries & Stanislav Avdeev"
+date: "7/11/2021"
+output:
+  html_document: default
+  #pdf_document: default
+---
+Our analysis relates to the estimation methods of elasticity parameters in the presence of endogenous responses of individuals to different tax systems. We follow bunching approach as in Saez (2010) and Chetty et al. (2011). We assume that utility function is quasi-linear and iso-elastic, meaning that no income effects are present and the compensated elasticity is constant. The utility and the budget constraint are given by
+$$\begin{equation}
+  U_i(c, z, n_i) = c - \frac{n_i}{1 + 1/e}(\frac{z}{n_i})^{1 + 1/e} \\
+  \text{ s.t. } c = (1 - t)z + R
+\end{equation}$$
+where $c$ denotes consumption, $n$ is a random ability parameter, $z$ denotes hours worked, and $e$ is elasticity parameter. 
+Maximising this utility given a budget constraint gives us the following F.O.C.
+$$\begin{equation}
+  \frac{\partial}{\partial z} = 1 - t - \frac{n_i}{1+1/e} \frac{1}{n_i^{1+1/e}}(1 + 1/e)z^{1/e} = 1 - t - (\frac{z}{n_i})^{1/e} = 0
+\end{equation}$$
+which gives us the optimal number of hours worked $z = n_i(1-t)^e$. Notice a typo in the Saez's F.O.C. which is $1 - t - (\frac{z}{n_i})^{e} = 0$ (p. 186). However, this typo does not affect the results obtained later in the paper.
+
+In this DGP we follow the simple approach in Saez (2010). We randomly generate $n_i \sim \mathcal{N}(40, 30)$, which ensures that preferences are heterogeneous. Otherwise, every individual would choose the same values and bunching would not arise. Note that this framework is equivalent as the framework in Chetty et al. (2011) section II.B for $w = p = 1$, since in that case gross income simply equals hours worked. 
+
+We assume a simple tax system with first tax bracket $t_0 = 0$, second tax bracket $t_1 = 0.37$, and third tax bracket  $t_1 = 0.5$, where the first tax is enforced for income greater than $K = 20$, and the second for income greater than $K = 50$. From the individual optimization it then follows that
+$$\begin{equation}
+ z_i^* = 
+ \begin{cases}
+   0 & \text{if}\:\: n_i \leq 0 \\
+   n_i(1-t_0)^e & \text{if}\:\: 0 < n_i \leq K_1/(1-t_0)^e \\
+   K_1 & \text{if} \:\: K_1/(1-t_0)^e < n_i \leq K_1/(1-t_1)^e \\
+   n_i(1-t_1)^e & \text{if} \:\: K_1/(1-t_1)^e < n_i \leq K_2/(1-t_1)^e \\
+   K_2 & \text{if}\:\: K_2/(1-t_1)^e < n_i \leq K_2/(1-t_2)^e \\
+   n_i(1-t_2)^e & \text{if} \:\: n_i > K_2/(1-t_2)^e \\
+ \end{cases}
+\end{equation}$$
+
+Thus, we have bunching at the kink point. Let us denote by $h(z^*)_{-}$ the density distribution just below the kink, and by $h(z^*)_{+}$ the density distribution just above the kink. So the fraction of the individuals bunching at the kink is given by:
+$$\begin{equation}
+ B = K ((\frac{1 - t_0}{1 - t_1})^e - 1)\frac{h(z^*)_{-} + h(z^*)_{+}/(\frac{1 - t_0}{1 - t_1})^e}{2}
+\end{equation}$$
+
+Let $x = (\frac{1 - t_0}{1 - t_1})^e$ so we can rewrite the expression and simplify it to a quadratic form:
+$$\begin{equation}
+ B = K (x - 1)\frac{h(z^*)_{-} + h(z^*)_{+}/x}{2} \\
+ \frac{1}{2}K h(z^*)_{-} x^2 + (\frac{1}{2}K h(z^*)_{+} - \frac{1}{2}K h(z^*)_{-} - B)x - \frac{1}{2}K h(z^*)_{+}
+\end{equation}$$
+Solving this with a simple ABC formula and taking logarithm of a fraction would give us an elasticity parameter $e$. To estimate an excess bunching we define three bands of income around the kink point varying a bandwith parameter $\delta$. $\delta$ is defined by looking at the empirical distribution of hours worked and different values of $\delta$ are used for robustness checks.
+
+The data is simulated in three steps:
+
+1. Set $N = 10000$, $e = 0.5$ and draw $n_i \sim \mathcal{N}(40, 30)$. 
+2. Compute $z_i^0 = n_i(1 - t_0)^e + u_i = n_i + u_i$, where to simulate optimization errors similar to those we observe in the real world, we set $u_i \sim \mathcal{N}(0,1)$. 
+3. Compute $z_i^1 = z_i^* + u_i$, where $u_i$ is similar as in step 2. 
+
+
+```{r setup, message = FALSE, results = FALSE}
+library(ggplot2)
+
+#we normalize wages and prices equal to 1 in the Chetty framework, 
+#such that we work with income z = hours worked h
+eps <- 0.5 #elasticity
+N <- 10000 #individuals
+reps <- 100 #number of monte carlo simulations
+I <- 1000 #number of bootstrap draws
+t0 <- 0 #initial tax
+t1 <- 0.37 #tax bracket 1
+t2 <- 0.5 #tax bracket 2
+K1 <- 20 #after 20 hours worked, tax increases to t1
+K2 <- 50 #after 50 hours worked, tax increases to t2
+D <- 4 #delta, window width for bunching
+
+set.seed(1)
+
+genData <- function(N, eps, t0, t1, t2, K1, K2){
+  #genderate a dataset with observed hours worked (income) under t0 and t1
+  df <- data.frame("n" = rnorm(N, 40, 30)) #ability level that implies heterogeneity in preferences
+  df$z0 <- ifelse(df$n > 0, df$n*(1-t0)^eps, 0) #hours worked under no tax system
+  
+  #if there is a tax system, then there are three options for z1 depending on ability n
+  df$z1 <- NA
+  for(i in 1:N){
+    
+    #option 1: if n <0, then better not work at all
+    if(df$n[i] <= 0 ){
+      df$z1[i] <- 0
+    }
+   
+    #option 2: n < K1/(1-t-0)^eps, in which case z0 = z1
+    else if(df$n[i] > 0 & df$n[i] <= K1/((1 - t0)^eps)){ 
+      df$z1[i] <- rnorm(1, df$n[i]*(1-t0)^eps, 1)
+      
+    #option 3: K1/(1-t0)^eps < n < K1/(1-t1)^eps, in which case z1 = K1 + u
+    } else if (df$n[i] <= K1/((1-t1)^eps) & df$n[i] > K1/((1-t0)^eps)){
+      df$z1[i] <- rnorm(1, K1, 1) 
+    }
+    
+    #option 4: K1/(1-t1)^eps < n < K2/(1-t1)^eps, in which case z1 =  n(1-t1)^eps
+    else if  (df$n[i] <= K2/((1-t1)^eps) & df$n[i] > K1/((1-t1)^eps)){
+      df$z1[i] <- rnorm(1, df$n[i]*(1-t1)^eps, 1)
+    }
+    
+    #option 5: K2/(1-t1)^eps < n < K2/(1-t2)^eps, in which case z1 = K2 + u
+    else if (df$n[i] <= K2/((1-t2)^eps) & df$n[i] > K2/((1-t1)^eps)){
+      df$z1[i] <- rnorm(1, K2, 1) 
+    }
+  
+    #option 6: K2/(1-t2)^eps < n, in which case z1 =  n(1-t2)^eps
+    else {df$z1[i] <- rnorm(1, df$n[i]*(1-t2)^eps, 1)
+    }
+  }
+  return(df)
+}
+
+computeE <- function(df, K, D, t, t_new){
+  #given a dataframe with hours worked and the kink value, compute the elasticity
+  #D is the window width denoted delta in Saez
+  #calculate fractions in each window, see page 188
+  df$b1 <- ifelse(K - 2*D < df$z1 & df$z1 < K - D, 1, 0)
+  df$b2 <- ifelse(K - D < df$z1 & df$z1 < K + D, 1, 0)
+  df$b3 <- ifelse(K + D < df$z1 & df$z1 < K + 2*D, 1, 0)
+  
+  H1 <- sum(df$b1)/N
+  H2 <- sum(df$b2)/N
+  H3 <- sum(df$b3)/N
+  
+  #calculate h_, h+ and h* and B
+  h1 <- H1/D
+  h2 <- H2/D
+  h3 <- H3/D
+  B <- H2 - (H1 + H3)
+  
+  #we use the ABC formula to solve for epsilon in eq (5) in Saez
+  a <- K*h1/2
+  b <- K/2*(h3 - h1) - B
+  c <- - K*h3/2
+  
+  X <- (-b + sqrt(b^2 - 4*a*c))/(2*a) #choose positive to ensure existence
+  Y <- (1 - t)/(1 - t_new)
+  eHat <- log(X)/log(Y)
+  return(eHat)
+}
+
+#generate a dataset with hours worked
+df <- genData(N, eps, t0, t1, t2, K1, K2)
+```
+
+
+Now plot the DGP:
+```{r, warnings = FALSE, message = FALSE}
+#for ease of plots transform data to grouped
+dfGrouped <- data.frame("z" = c(df$z0, df$z1))
+dfGrouped$tax <- rep(c("t0", "t1"), each = N)
+dfGrouped$tax <- as.factor(dfGrouped$tax )
+
+#plot the histograms of observed hours worked
+ggplot(dfGrouped, aes(x = z, fill = tax)) +
+  theme_minimal() +
+  geom_histogram(alpha = 0.7, aes(y = ..density..), position = 'identity', bins = 75) + 
+  labs(y = "Density",
+       x = "Number of hours worked") +
+  scale_fill_manual(name = "Tax system",
+                     values = c("dark blue", "dark red"),
+                     labels = c("No tax", "37% and 50% taxes")) +
+  geom_vline(xintercept = 20, color = "red", linetype = "dashed") +
+  geom_vline(xintercept = 50, color = "red", linetype = "dashed")
+``` 
+
+We can see that under no tax system, there is no bunching and every individual chooses to work $z = n_i(1-t_0)^e$ hours. Indeed, we observe almost perfect overlap before 20 hours, and then two spikes around 20 and 50 hours. 
+
+```{r}
+# Estimates for the first kink
+estimates_t1 <- data.frame(matrix(NA, nrow = reps, ncol = 5))
+colnames(estimates_t1) <- c("e1", "e2", "e3", "e4", "e5")
+
+for(r in 1:reps){
+  df <- genData(N, eps, t0, t1, t2, K1, K2)
+  estimates_t1$e1[r] <- computeE(df, K1, 2, t0, t1)
+  estimates_t1$e2[r] <- computeE(df, K1, 3, t0, t1)
+  estimates_t1$e3[r] <- computeE(df, K1, 4, t0, t1)
+  estimates_t1$e4[r] <- computeE(df, K1, 5, t0, t1)
+  estimates_t1$e5[r] <- computeE(df, K1, 6, t0, t1)
+}
+#summary(estimates_t1$e3)
+
+# Estimates for the second kink
+estimates_t2 <- data.frame(matrix(NA, nrow = reps, ncol = 5))
+colnames(estimates_t2) <- c("e1", "e2", "e3", "e4", "e5")
+
+for(r in 1:reps){
+  df <- genData(N, eps, t0, t1, t2, K1, K2)
+  estimates_t2$e1[r] <- computeE(df, K2, 2, t1, t2)
+  estimates_t2$e2[r] <- computeE(df, K2, 3, t1, t2)
+  estimates_t2$e3[r] <- computeE(df, K2, 4, t1, t2)
+  estimates_t2$e4[r] <- computeE(df, K2, 5, t1, t2)
+  estimates_t2$e5[r] <- computeE(df, K2, 6, t1, t2)
+}
+#summary(estimates_t2$e3)
+
+#we can use the bootstrap to calculate confidence intervals: 
+#draw from the original sample N observations with replacement
+#calculate ehat and store the values
+#repeat this process I times
+
+# Estimates for the first kink
+bootstrapE_t1 <- data.frame(matrix(NA, nrow = I, ncol = 5))
+colnames(bootstrapE_t1) <- c("e1", "e2", "e3", "e4", "e5")
+for(i in 1:I){
+  simDf <- df[sample(1:N, N, replace = TRUE), ]
+  bootstrapE_t1$e1[i] <- computeE(simDf, K1, 2, t0, t1)
+  bootstrapE_t1$e2[i] <- computeE(simDf, K1, 3, t0, t1)
+  bootstrapE_t1$e3[i] <- computeE(simDf, K1, 4, t0, t1)
+  bootstrapE_t1$e4[i] <- computeE(simDf, K1, 5, t0, t1)
+  bootstrapE_t1$e5[i] <- computeE(simDf, K1, 6, t0, t1)
+}
+#quantile(bootstrapE_t1$e3, probs= c(0.025, 0.975)) 
+
+# Estimates for the second kink
+bootstrapE_t2 <- data.frame(matrix(NA, nrow = I, ncol = 5))
+colnames(bootstrapE_t2) <- c("e1", "e2", "e3", "e4", "e5")
+for(i in 1:I){
+  simDf <- df[sample(1:N, N, replace = TRUE), ]
+  bootstrapE_t2$e1[i] <- computeE(simDf, K2, 2, t1, t2)
+  bootstrapE_t2$e2[i] <- computeE(simDf, K2, 3, t1, t2)
+  bootstrapE_t2$e3[i] <- computeE(simDf, K2, 4, t1, t2)
+  bootstrapE_t2$e4[i] <- computeE(simDf, K2, 5, t1, t2)
+  bootstrapE_t2$e5[i] <- computeE(simDf, K2, 6, t1, t2)
+}
+#quantile(bootstrapE_t2$e3, probs= c(0.025, 0.975)) 
+
+#note that the bootstrap does not remove any sampling bias, but rather estimation errors
+```
+
+Below you can see estimates with varying parameter $\delta \in [2:6]$ for sensitivity analysis. We also use bootstrap method to calculate the confidence intervals $[2.5%, 97.5%]$. The estimates of the elasticity parameter at first kink are in the range of $[0.43, 0.56]$, whereas the estimates at the second kink are in the range of $[0.43, 0.57]$. The estimates of the elasticity parameters at both kinks are statistically significant. 
+
+```{r echo=FALSE, results='asis'}
+est_table <- data.frame(matrix(NA, nrow = 6, ncol = 6))
+colnames(est_table) <- c("Estimate", "D = 2", "D = 3", "D = 4", "D = 5", "D = 6")
+est_table[1, 1] <- "First kink"
+est_table[2, 1] <- "2.5%"
+est_table[3, 1] <- "97.5%"
+est_table[4, 1] <- "Second kink"
+est_table[5, 1] <- "2.5%"
+est_table[6, 1] <- "97.5%"
+
+est_table[1, 2] <- summary(estimates_t1$e1)[4]
+est_table[1, 3] <- summary(estimates_t1$e2)[4]
+est_table[1, 4] <- summary(estimates_t1$e3)[4]
+est_table[1, 5] <- summary(estimates_t1$e4)[4]
+est_table[1, 6] <- summary(estimates_t1$e5)[4]
+
+est_table[c(2,3), 2] <- quantile(bootstrapE_t1$e1, probs= c(0.025, 0.975)) 
+est_table[c(2,3), 3] <- quantile(bootstrapE_t1$e2, probs= c(0.025, 0.975)) 
+est_table[c(2,3), 4] <- quantile(bootstrapE_t1$e3, probs= c(0.025, 0.975)) 
+est_table[c(2,3), 5] <- quantile(bootstrapE_t1$e4, probs= c(0.025, 0.975)) 
+est_table[c(2,3), 6] <- quantile(bootstrapE_t1$e5, probs= c(0.025, 0.975)) 
+
+est_table[4, 2] <- summary(estimates_t2$e1)[4]
+est_table[4, 3] <- summary(estimates_t2$e2)[4]
+est_table[4, 4] <- summary(estimates_t2$e3)[4]
+est_table[4, 5] <- summary(estimates_t2$e4)[4]
+est_table[4, 6] <- summary(estimates_t2$e5)[4]
+
+est_table[c(5,6), 2] <- quantile(bootstrapE_t2$e1, probs= c(0.025, 0.975)) 
+est_table[c(5,6), 3] <- quantile(bootstrapE_t2$e2, probs= c(0.025, 0.975)) 
+est_table[c(5,6), 4] <- quantile(bootstrapE_t2$e3, probs= c(0.025, 0.975)) 
+est_table[c(5,6), 5] <- quantile(bootstrapE_t2$e4, probs= c(0.025, 0.975)) 
+est_table[c(5,6), 6] <- quantile(bootstrapE_t2$e5, probs= c(0.025, 0.975)) 
+```
+
+```{r}
+est_table
+```
+
+Our results contribute to a developing literature on tax bunching (Saez, 2010; Chetty et al. 2011, Kleven and Waseem, 2013). In our model we introduce a measurment error in the whole interval of hours worked as people might mistakenly choose to work less or more hours when trying to maximize their utility function. We also use two kink points to create nonlinear budget sets to identify behavioral responses to taxation. Third, we choose a wide range of values of the bandwith to check the sensitivity of the estimates and find robust results.
+
