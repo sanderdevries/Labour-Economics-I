@@ -6,7 +6,7 @@ output:
   html_document: default
   #pdf_document: default
 ---
-#h1 Introduction
+### Introduction
 
 Our analysis relates to the estimation methods of elasticity parameters in the presence of endogenous responses of individuals to different tax systems. We follow the bunching approach as in Saez (2010) and Chetty et al. (2011). We assume that the population utility function is quasi-linear and iso-elastic, meaning that no income effects are present and the compensated elasticity is constant. The utility and the budget constraint are given by
 $$\begin{equation}
@@ -20,7 +20,7 @@ $$\begin{equation}
 \end{equation}$$
 which gives us the optimal number of hours worked $z = n_i(1-t)^e$. Notice a typo in the Saez's F.O.C. which is $1 - t - (\frac{z}{n_i})^{e} = 0$ (p. 186). However, this typo does not affect the results obtained later in the paper. Note that the fixed consumption $R$ is not in the FOC. As such, the analysis is implicitely valid for budget constraints including a fixed consumption $R$, which will not be mentioned hereafter. 
 
-#h1 Data generating process
+### Data generating process
 
 In this DGP we follow the simple approach in Saez (2010). We randomly generate $n_i \sim \mathcal{N}(40, 30)$, which ensures that preferences are heterogeneous. Otherwise, every individual would choose the same values and bunching would not arise. Note that this framework is equivalent as the framework in Chetty et al. (2011) section II.B for $w = p = 1$, since in that case gross income simply equals hours worked. 
 
@@ -134,7 +134,7 @@ ggplot(dfGrouped, aes(x = z, fill = tax)) +
 
 We can see that under the no tax system, there is no bunching and every individual chooses to work $z = n_i(1-t_0)^e$ hours. Indeed, we observe almost perfect overlap before 20 hours, and then two spikes around 20 and 50 hours. 
 
-#h1 Elasticity estimation
+### Elasticity estimation
 
 We first introduce some terminology needed for the elasticity estimation. 
 Let $h_0(z)$ be the counterfactual density of hours worked under the no-tax system and let $h_1(z)$ be the counterfactual density under a tax system with only $t_1$ imposed at income threshold $K_1$. These densities are not observed, but the relevant parts can be estimated empirically. To estimate the excess bunching at a kink we define three bands of income around the kink points varying with a bandwith parameter $\delta$. The bands are $(K_i - 2 \delta, K_i - \delta)$, $(K_i - \delta, K_i + \delta)$ and $(K_i + \delta, K_i + 2\delta)$ for $i \in \{1,2\}$. Moreover, let us denote by $h_0(z^*)_{-} = \lim_{z \uparrow z^*} h_0(z)$ the density just below the first kink, and by $h_0(z^*)_{+} = \lim_{z \downarrow z^*} h_0(z)$ the density just above the first kink. Similarly, $h_1(z^*)_{-} = \lim_{z \uparrow z^*} h_1(z)$ is the counterfactual density just below the second kink, and $h_1(z^*)_{+} = \lim_{z \downarrow z^*} h_0(z)$ is the density just above the second kink. Let $\hat{H}_{i-}, \hat{H}_{i}$ and $\hat{H}_{i+}$ be the fraction of individuals in each of the three bands respectively at kink $K_i$. For conciseness, we only show how to obtain the elasticity value at the first kink The methodology for the second kink is entirely equivalent, given that the appropriate counterfactual density should be used.
@@ -193,7 +193,7 @@ paste("The elasticity estimate corresponding to the class DGP is", computeE(clas
 
 ```
 
-#h1 Empirical results
+### Empirical results
 
 Now that both the DGP and the estimation method are in place, we can run a Monte Carlo study to see whether the method works. To do so, we generate the DGP and estimate the elasticity $\hat{e}$ for six different values of $\delta$ a hundred times each. We do this procedure for both kinks, yielding $2 \times 600$ estimates of $\hat{e}$. Summary results are reported in the table below. 
 
@@ -326,7 +326,7 @@ kable_styling(kable(bootstrap_table, caption = "Bootstrapped confidence interval
 
 Notice that for small values of $\delta$ we underestimate $e$ and for large values of $\delta$ we overestimate $e$. This is explained by the fact that for small values of $\delta$, the first and third bandwidth will be in the bunching window and consequently $\hat{h}_i(z^*)_{-}$ and $\hat{h}_i(z^*)_{+}$ are overestimated and $\hat{H}_i$ is underestimated. This means that $\hat{B}$ is underestimated and as $\hat{B}$ is proportional to $\hat{e}$ we consequently have that $\hat{e}$ is underestimated. From analogous reasoning it follows that for too large $\delta$, $\hat{e}$ is overestimating $e$. 
 
-#h1 Discussion
+### Discussion
 
 Our results contribute to a developing literature on tax bunching (Saez, 2010; Chetty et al. 2011, Kleven and Waseem, 2013). In our model we introduce a measurement error in the whole interval of hours worked as people might mistakenly choose to work less or more hours when trying to maximize their utility function. We also use two kink points to create nonlinear budget sets to identify behavioral responses to taxation. Third, we choose a wide range of values of the bandwith to check the sensitivity of the estimates and find robust results.
 
@@ -334,7 +334,7 @@ Blomquist and Newey (2018) criticize the bunching approach. The authors show tha
 bunching estimator cannot identify the taxable income elasticity when the functional form of
 the distribution of preference heterogeneity is unknown. In our setting, this means that the functional form of the distribution of $n_i$ is unknown. The authors find that an observed distribution of taxable income around a kink point or over the whole budget set can be consistent with any positive taxable income elasticity if the distribution of heterogeneity is unrestricted. The reason why our estimates still produce meaningful results even though we did not explicitly use the fact that $n_i$ followed a normal distribution is that we implicitly assumed that the density is linear across the kink. As any differentiable function is locally linear, it turns out that for not too large bandwidth $\delta$ this assumption is not unreasonable and yields reliable results.  
 
-#h1 References
+### References
 
 Blomquist, S. and W.K. Newey (2018), “The Kink and Notch Bunching Estimators Cannot
 Identify the Taxable Income Elasticity,” Working paper 2018:4, Dept. of Economics, Uppsala
